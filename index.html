@@ -1,0 +1,661 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Calculator, Hexagon, Circle, ArrowRight, Package, Scale, ArrowLeftRight, Ruler, Banknote, Info, Briefcase, AlertTriangle, RotateCcw } from 'lucide-react';
+
+// --- Функция генерации кругов ---
+function generateRoundData(start, end, step, rawSizes) {
+  const result = [];
+  for (let target = start; target <= end; target += step) {
+    const roundedTarget = Math.round(target * 10) / 10;
+    rawSizes.forEach(raw => {
+      if (raw >= roundedTarget + 1) {
+        const coef = Math.pow(raw / roundedTarget, 2);
+        result.push({ target: roundedTarget, raw: raw, coef: parseFloat(coef.toFixed(3)) });
+      }
+    });
+  }
+  return result;
+}
+
+// --- Табличные данные ---
+const ROUND_DATA = [
+  { target: 10, raw: 12, coef: 1.440 }, { target: 10.5, raw: 12, coef: 1.306 }, { target: 11, raw: 12, coef: 1.190 }, { target: 11.5, raw: 14, coef: 1.482 },
+  { target: 12, raw: 14, coef: 1.361 }, { target: 12.5, raw: 14, coef: 1.254 }, { target: 12.5, raw: 15, coef: 1.440 }, { target: 13, raw: 14, coef: 1.160 },
+  { target: 13, raw: 15, coef: 1.331 }, { target: 13.5, raw: 15, coef: 1.235 }, { target: 13.5, raw: 16, coef: 1.405 }, { target: 14, raw: 15, coef: 1.148 },
+  { target: 14, raw: 16, coef: 1.306 }, { target: 14.5, raw: 16, coef: 1.218 }, { target: 15, raw: 16, coef: 1.138 }, { target: 15.5, raw: 18, coef: 1.349 },
+  { target: 16, raw: 18, coef: 1.266 }, { target: 16.5, raw: 18, coef: 1.190 }, { target: 16.5, raw: 19, coef: 1.326 }, { target: 17, raw: 18, coef: 1.121 },
+  { target: 17, raw: 19, coef: 1.249 }, { target: 17.5, raw: 19, coef: 1.179 }, { target: 17.5, raw: 20, coef: 1.306 }, { target: 18, raw: 20, coef: 1.235 },
+  { target: 18.5, raw: 20, coef: 1.169 }, { target: 19, raw: 18, coef: 1.114 }, { target: 19, raw: 22, coef: 1.273 }, { target: 19.5, raw: 22, coef: 1.273 },
+  { target: 20, raw: 19, coef: 1.108 }, { target: 20, raw: 22, coef: 1.210 }, { target: 20.5, raw: 22, coef: 1.152 }, { target: 21, raw: 22, coef: 1.098 },
+  { target: 21.5, raw: 24, coef: 1.246 }, { target: 22, raw: 24, coef: 1.190 }, { target: 22.5, raw: 24, coef: 1.138 }, { target: 22.5, raw: 25, coef: 1.235 },
+  { target: 23, raw: 24, coef: 1.089 }, { target: 23.5, raw: 25, coef: 1.132 }, { target: 23.5, raw: 26, coef: 1.224 }, { target: 24, raw: 25, coef: 1.085 },
+  { target: 24, raw: 26, coef: 1.174 }, { target: 24.5, raw: 26, coef: 1.126 }, { target: 25, raw: 23, coef: 1.181 }, { target: 25, raw: 26, coef: 1.082 },
+  { target: 25.5, raw: 28, coef: 1.206 }, { target: 26, raw: 28, coef: 1.160 }, { target: 26.5, raw: 28, coef: 1.116 }, { target: 27, raw: 28, coef: 1.075 },
+  { target: 27.5, raw: 30, coef: 1.190 }, { target: 28, raw: 30, coef: 1.148 }, { target: 28.5, raw: 30, coef: 1.108 }, { target: 29, raw: 30, coef: 1.070 },
+  { target: 29.5, raw: 32, coef: 1.177 }, { target: 30, raw: 32, coef: 1.138 }, { target: 43, raw: 45, coef: 1.095 }, { target: 43.5, raw: 45, coef: 1.070 },
+  { target: 44, raw: 45, coef: 1.046 }, { target: 43.5, raw: 46, coef: 1.118 }, { target: 44, raw: 46, coef: 1.093 }, { target: 44.5, raw: 46, coef: 1.069 },
+  { target: 45, raw: 46, coef: 1.045 }, { target: 45.5, raw: 48, coef: 1.113 }, { target: 46, raw: 48, coef: 1.089 }, { target: 46.5, raw: 48, coef: 1.066 },
+  { target: 47, raw: 48, coef: 1.043 }, { target: 47.5, raw: 50, coef: 1.108 }, { target: 48, raw: 50, coef: 1.085 }, { target: 48.5, raw: 50, coef: 1.063 },
+  { target: 49, raw: 50, coef: 1.041 }, { target: 49.5, raw: 52, coef: 1.104 }, { target: 50, raw: 52, coef: 1.082 },
+  // Круги > 50 до 62 мм (шаг 0.5 мм), заготовки: 52, 54, 55, 56, 58, 60, 62, 63, 64
+  ...generateRoundData(50.5, 62.0, 0.5, [52, 54, 55, 56, 58, 60, 62, 63, 64])
+];
+
+const HEX_DATA = [
+  { target: 10, raw: 12, coef: 1.226 }, { target: 11, raw: 13, coef: 1.231 }, { target: 12, raw: 14, coef: 1.226 }, { target: 13, raw: 15, coef: 1.225 },
+  { target: 14, raw: 16, coef: 1.226 }, { target: 15, raw: 17, coef: 1.226 }, { target: 16, raw: 19, coef: 1.226 }, { target: 17, raw: 20, coef: 1.226 },
+  { target: 18, raw: 21, coef: 1.226 }, { target: 19, raw: 22, coef: 1.226 }, { target: 20, raw: 23, coef: 1.226 }, { target: 21, raw: 24, coef: 1.226 },
+  { target: 22, raw: 26, coef: 1.226 }, { target: 24, raw: 28, coef: 1.226 }, { target: 25, raw: 29, coef: 1.226 }, { target: 26, raw: 30, coef: 1.226 },
+  { target: 27, raw: 31, coef: 1.226 }, { target: 28, raw: 33, coef: 1.226 }, { target: 30, raw: 35, coef: 1.226 }, { target: 32, raw: 37, coef: 1.226 },
+  { target: 34, raw: 40, coef: 1.226 }, { target: 36, raw: 42, coef: 1.226 }, { target: 38, raw: 44, coef: 1.226 }, { target: 40, raw: 47, coef: 1.225 },
+  { target: 41, raw: 48, coef: 1.226 }, { target: 42, raw: 49, coef: 1.226 }, { target: 45, raw: 52, coef: 1.225 }, { target: 46, raw: 53, coef: 1.226 },
+  { target: 48, raw: 56, coef: 1.223 }, { target: 50, raw: 58, coef: 1.226 }, { target: 53, raw: 62, coef: 1.225 }, { target: 55, raw: 64, coef: 1.226 },
+  { target: 56, raw: 65, coef: 1.226 }, { target: 60, raw: 70, coef: 1.226 }, { target: 63, raw: 73, coef: 1.226 },
+];
+
+export default function App() {
+  const [profileType, setProfileType] = useState('round');
+  const [selectedTarget, setSelectedTarget] = useState('');
+  const [selectedRaw, setSelectedRaw] = useState('');
+  const [orderWeight, setOrderWeight] = useState('');
+  
+  // Добавлена безопасная обработка числового ввода для длины
+  const [lengthInput, setLengthInput] = useState({ value: '6000', source: 'raw' });
+  const [orderedLength, setOrderedLength] = useState('6000');
+  
+  const [rawPrice, setRawPrice] = useState('');
+  const [sellPrice, setSellPrice] = useState('');
+
+  const activeData = profileType === 'round' ? ROUND_DATA : HEX_DATA;
+
+  const targetOptions = useMemo(() => {
+    const targets = activeData.map(item => item.target);
+    return [...new Set(targets)].sort((a, b) => a - b);
+  }, [activeData]);
+
+  const rawOptions = useMemo(() => {
+    if (!selectedTarget) return [];
+    return activeData
+      .filter(item => item.target === Number(selectedTarget))
+      .map(item => item.raw)
+      .sort((a, b) => a - b);
+  }, [selectedTarget, activeData]);
+
+  const currentCoefficient = useMemo(() => {
+    if (!selectedTarget || !selectedRaw) return null;
+    const match = activeData.find(
+      item => item.target === Number(selectedTarget) && item.raw === Number(selectedRaw)
+    );
+    return match ? match.coef : null;
+  }, [selectedTarget, selectedRaw, activeData]);
+
+  useEffect(() => {
+    setSelectedTarget('');
+    setSelectedRaw('');
+  }, [profileType]);
+
+  useEffect(() => {
+    if (rawOptions.length === 1) {
+      setSelectedRaw(rawOptions[0].toString());
+    } else if (rawOptions.length > 0 && !rawOptions.includes(Number(selectedRaw))) {
+      setSelectedRaw('');
+    }
+  }, [selectedTarget, rawOptions]);
+
+  const requiredWeight = useMemo(() => {
+    if (!orderWeight || !currentCoefficient) return null;
+    const val = Number(orderWeight) * currentCoefficient;
+    return isNaN(val) ? null : val.toFixed(2);
+  }, [orderWeight, currentCoefficient]);
+
+  const currentDrawCoef = useMemo(() => {
+    if (!selectedTarget || !selectedRaw) return null;
+    if (profileType === 'round') {
+      return Math.pow(Number(selectedRaw), 2) / Math.pow(Number(selectedTarget), 2);
+    } else {
+      return (Number(selectedTarget) === 48 && Number(selectedRaw) === 56) ? 1.22 : 1.23;
+    }
+  }, [selectedTarget, selectedRaw, profileType]);
+
+  const displayedRawLength = lengthInput.source === 'raw' 
+    ? lengthInput.value 
+    : (lengthInput.value && currentDrawCoef ? (Number(lengthInput.value) / currentDrawCoef).toFixed(1) : '');
+
+  const displayedTargetLength = lengthInput.source === 'target' 
+    ? lengthInput.value 
+    : (lengthInput.value && currentDrawCoef ? (Number(lengthInput.value) * currentDrawCoef).toFixed(1) : '');
+
+  const piecesPerBar = useMemo(() => {
+    if (displayedTargetLength && orderedLength) {
+      const target = Number(displayedTargetLength);
+      const order = Number(orderedLength);
+      return (order > 0 && target >= order) ? Math.floor(target / order) : 0;
+    }
+    return 0;
+  }, [displayedTargetLength, orderedLength]);
+
+  const remnantLength = useMemo(() => {
+    if (displayedTargetLength && orderedLength) {
+      const target = Number(displayedTargetLength);
+      const order = Number(orderedLength);
+      if (isNaN(target) || isNaN(order)) return '';
+      if (order > target) return (target - order).toFixed(1);
+      return (target - (order * piecesPerBar)).toFixed(1);
+    }
+    return '';
+  }, [displayedTargetLength, orderedLength, piecesPerBar]);
+
+  const optimalLengths = useMemo(() => {
+    if (!displayedTargetLength) return [];
+    const target = Number(displayedTargetLength);
+    if (isNaN(target)) return [];
+    return [
+      { pieces: 1, length: target.toFixed(0) },
+      { pieces: 2, length: (target / 2).toFixed(0) },
+      { pieces: 3, length: (target / 3).toFixed(0) },
+      { pieces: 4, length: (target / 4).toFixed(0) },
+    ].filter(opt => Number(opt.length) >= 1000); 
+  }, [displayedTargetLength]);
+
+  const remnantWeight = useMemo(() => {
+    if (!remnantLength || Number(remnantLength) <= 0 || !selectedTarget) return null;
+    const lengthMm = Number(remnantLength);
+    const sizeMm = Number(selectedTarget);
+    const area = profileType === 'round' 
+      ? (Math.PI * Math.pow(sizeMm, 2)) / 4 
+      : (Math.sqrt(3) / 2) * Math.pow(sizeMm, 2);
+    const weightKg = area * lengthMm * 0.00000785;
+    return { tons: (weightKg / 1000).toFixed(5), kg: weightKg.toFixed(2) };
+  }, [remnantLength, selectedTarget, profileType]);
+
+  const remnantValue = useMemo(() => {
+    if (!remnantWeight || !rawPrice) return null;
+    const val = Number(remnantWeight.tons) * Number(rawPrice);
+    return isNaN(val) ? null : val.toFixed(2);
+  }, [remnantWeight, rawPrice]);
+
+  const advancedRemnantStats = useMemo(() => {
+    if (!remnantLength || Number(remnantLength) <= 0 || !orderedLength || Number(orderedLength) <= 0 || piecesPerBar === 0) return null;
+    const ratio = Number(remnantLength) / (Number(orderedLength) * piecesPerBar);
+    const kgPerTon = ratio * 1000;
+    const tonsPerTon = ratio;
+    const valuePerTon = rawPrice ? ratio * Number(rawPrice) : null;
+    let orderScrapTons = 0, orderScrapValue = null;
+    
+    if (orderWeight && Number(orderWeight) > 0) {
+      orderScrapTons = ratio * Number(orderWeight);
+      if (rawPrice) orderScrapValue = orderScrapTons * Number(rawPrice);
+    }
+    
+    return {
+      kgPerTon: kgPerTon.toFixed(1), 
+      tonsPerTon: tonsPerTon.toFixed(3),
+      valuePerTon: valuePerTon !== null ? valuePerTon.toFixed(2) : null,
+      orderScrapTons: orderScrapTons.toFixed(3),
+      orderScrapValue: orderScrapValue !== null ? orderScrapValue.toFixed(2) : null
+    };
+  }, [remnantLength, orderedLength, rawPrice, orderWeight, piecesPerBar]);
+
+  const commercialStats = useMemo(() => {
+    if (!sellPrice || !rawPrice || !orderWeight) return null;
+    const sPrice = Number(sellPrice);
+    const rPrice = Number(rawPrice);
+    const weight = Number(orderWeight);
+    if (isNaN(sPrice) || isNaN(rPrice) || isNaN(weight)) return null;
+
+    const lossesPerTon = advancedRemnantStats?.valuePerTon ? Number(advancedRemnantStats.valuePerTon) : 0;
+    const profitPerTon = sPrice - rPrice - lossesPerTon;
+    const profitTotal = profitPerTon * weight;
+    
+    return {
+      lossesPerTon, 
+      profitPerTon, 
+      profitTotal,
+      sellTotal: sPrice * weight,
+      rawTotal: rPrice * weight,
+      lossesTotal: lossesPerTon * weight,
+      isPositive: profitTotal >= 0
+    };
+  }, [sellPrice, rawPrice, orderWeight, advancedRemnantStats]);
+
+  const formatCurrency = (value) => {
+    if (value === null || value === undefined || isNaN(Number(value))) return '0,00';
+    return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value));
+  };
+
+  const formatInputValue = (value) => {
+    if (!value) return '';
+    const parts = value.toString().split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    return parts.join('.');
+  };
+
+  const handleNumericInput = (e, setter) => {
+    let val = e.target.value.replace(/\s/g, '').replace(/,/g, '.');
+    // Позволяет вводить только числа и одну точку
+    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+      setter(val);
+    }
+  };
+
+  const handleReset = () => {
+    setProfileType('round'); setSelectedTarget(''); setSelectedRaw('');
+    setOrderWeight(''); setLengthInput({ value: '6000', source: 'raw' });
+    setOrderedLength('6000'); setRawPrice(''); setSellPrice('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F5F5F7] py-6 sm:py-12 px-4 sm:px-6 font-sans text-gray-900 antialiased selection:bg-blue-200">
+      <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
+        
+        {/* Шапка */}
+        <header className="bg-white/80 backdrop-blur-xl sticky top-2 sm:top-4 z-50 rounded-[28px] px-5 py-4 sm:px-8 sm:py-5 shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 text-center sm:text-left">
+            <div className="w-12 h-12 bg-blue-500 rounded-[18px] flex items-center justify-center shadow-sm shrink-0 mx-auto sm:mx-0">
+              <Calculator className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-semibold tracking-tight text-gray-900 leading-tight">
+                Калькулятор для менеджеров
+              </h1>
+              <p className="text-xs sm:text-sm font-medium text-gray-500 mt-0.5">
+                Имени В.В. Швеца
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={handleReset} 
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors font-medium text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 active:scale-95"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Сбросить
+          </button>
+        </header>
+
+        {/* Секция 1: Основные параметры */}
+        <section className="bg-white rounded-[32px] p-5 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-50">
+          
+          {/* iOS Style Segmented Control */}
+          <div className="bg-[#E3E3E8]/60 p-1 rounded-[14px] flex max-w-sm mx-auto mb-8 sm:mb-10">
+            <button 
+              onClick={() => setProfileType('round')} 
+              className={`flex-1 py-2 px-3 rounded-[10px] flex items-center justify-center gap-2 text-[13px] sm:text-sm font-semibold transition-all duration-200 ${profileType === 'round' ? 'bg-white text-gray-900 shadow-[0_3px_8px_rgba(0,0,0,0.12)]' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <Circle className="w-4 h-4" /> Круг
+            </button>
+            <button 
+              onClick={() => setProfileType('hex')} 
+              className={`flex-1 py-2 px-3 rounded-[10px] flex items-center justify-center gap-2 text-[13px] sm:text-sm font-semibold transition-all duration-200 ${profileType === 'hex' ? 'bg-white text-gray-900 shadow-[0_3px_8px_rgba(0,0,0,0.12)]' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <Hexagon className="w-4 h-4" /> Шестигранник
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 items-end">
+            <div className="space-y-1.5">
+              <label className="block text-[13px] font-medium text-gray-500 ml-1">Готовый пруток (мм)</label>
+              <div className="relative">
+                <select 
+                  value={selectedTarget} 
+                  onChange={(e) => setSelectedTarget(e.target.value)} 
+                  className="w-full bg-[#F5F5F7] border border-transparent text-gray-900 rounded-2xl px-4 h-14 text-base font-semibold outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all appearance-none cursor-pointer"
+                >
+                  <option value="" disabled>Размер...</option>
+                  {targetOptions.map(size => <option key={size} value={size}>{size}</option>)}
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[13px] font-medium text-gray-500 ml-1">Заготовка (мм)</label>
+              <div className="relative">
+                <select 
+                  value={selectedRaw} 
+                  onChange={(e) => setSelectedRaw(e.target.value)} 
+                  disabled={!selectedTarget} 
+                  className="w-full bg-[#F5F5F7] border border-transparent text-gray-900 rounded-2xl px-4 h-14 text-base font-semibold outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all appearance-none disabled:opacity-50 cursor-pointer"
+                >
+                  <option value="" disabled>{selectedTarget ? "Выбор..." : "Ожидание"}</option>
+                  {rawOptions.map(size => <option key={size} value={size}>{size}</option>)}
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[13px] font-medium text-gray-500 ml-1">Объем заказа</label>
+              <div className="relative">
+                <input 
+                  type="text" inputMode="decimal" placeholder="5" 
+                  value={orderWeight} onChange={(e) => handleNumericInput(e, setOrderWeight)} 
+                  className="w-full bg-[#F5F5F7] border border-transparent text-gray-900 rounded-2xl pl-4 pr-12 h-14 text-base font-semibold outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder-gray-400" 
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">тонн</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[13px] font-medium text-gray-500 ml-1 leading-tight">Цена заготовки (без НДС)</label>
+              <div className="relative">
+                <input 
+                  type="text" inputMode="decimal" placeholder="40 000" 
+                  value={formatInputValue(rawPrice)} onChange={(e) => handleNumericInput(e, setRawPrice)} 
+                  className="w-full bg-[#F5F5F7] border border-transparent text-gray-900 rounded-2xl pl-4 pr-12 h-14 text-base font-semibold outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder-gray-400" 
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">руб</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Секция 2: Раскрой */}
+        <section className="bg-white rounded-[32px] p-5 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-50 space-y-6 sm:space-y-8">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-50 text-blue-500 rounded-full">
+              <Ruler className="w-5 h-5" />
+            </div>
+            <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-gray-900">Раскрой и остатки</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 sm:gap-6 items-center bg-[#F5F5F7]/60 p-5 sm:p-6 rounded-3xl border border-gray-100/50">
+            <div className="space-y-1.5 w-full">
+              <label className="block text-[13px] font-medium text-gray-500 ml-1">Длина заготовки</label>
+              <div className="relative">
+                <input 
+                  type="text" inputMode="numeric" value={displayedRawLength} onChange={(e) => handleNumericInput(e, (val) => setLengthInput({ value: val, source: 'raw' }))} disabled={!selectedTarget} 
+                  className="w-full bg-white border border-transparent text-gray-900 rounded-2xl pl-4 pr-12 h-14 text-lg font-semibold outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all disabled:bg-transparent" 
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">мм</span>
+              </div>
+            </div>
+            
+            <ArrowRight className="w-6 h-6 text-gray-300 hidden md:block shrink-0 mx-2" />
+            <ArrowRight className="w-6 h-6 text-gray-300 md:hidden rotate-90 mx-auto my-1" />
+
+            <div className="space-y-1.5 w-full">
+              <label className="block text-[13px] font-medium text-gray-500 ml-1">Длина вытяжки</label>
+              <div className="relative">
+                <input 
+                  type="text" readOnly value={displayedTargetLength} 
+                  className="w-full bg-white border border-transparent text-blue-600 rounded-2xl pl-4 pr-12 h-14 text-lg font-semibold outline-none shadow-[0_2px_10px_rgba(0,0,0,0.02)]" 
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">мм</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-blue-50/50 p-5 sm:p-8 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 border border-blue-100/30">
+            <div>
+              <label className="block text-base sm:text-lg font-semibold text-gray-900 tracking-tight">Требуемая длина</label>
+              <p className="text-[13px] sm:text-sm text-gray-500 mt-1">Отгрузка заказчику</p>
+            </div>
+            <div className="relative w-full sm:w-1/3 shrink-0">
+              <input 
+                type="text" inputMode="numeric" value={orderedLength} onChange={(e) => handleNumericInput(e, setOrderedLength)} 
+                className="w-full bg-white border border-transparent text-gray-900 rounded-2xl px-5 h-14 sm:h-16 text-xl sm:text-2xl font-semibold outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 shadow-sm transition-all" 
+              />
+              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm sm:text-base">мм</span>
+            </div>
+          </div>
+
+          {optimalLengths.length > 0 && Number(remnantLength) > 0 && (
+            <div className="bg-[#F5F5F7] rounded-3xl p-5 sm:p-6 border border-gray-100">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="p-2 bg-white rounded-full shadow-sm shrink-0">
+                  <Info className="w-5 h-5 text-blue-500" />
+                </div>
+                <div className="space-y-3 w-full">
+                  <p className="text-[13px] sm:text-sm font-medium text-gray-800">Оптимальная кратная длина <span className="text-gray-500 font-normal">(вычтено 5 мм на рез)</span>:</p>
+                  <div className="flex flex-wrap gap-2.5">
+                    {optimalLengths.slice(0, 4).map((opt, i) => (
+                      <button 
+                        key={i} 
+                        onClick={() => setOrderedLength((Number(opt.length) - 5).toString())} 
+                        className="bg-white hover:bg-blue-50 text-gray-900 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-[12px] sm:rounded-[14px] font-medium transition-all shadow-sm active:scale-95 text-[13px] sm:text-sm flex items-center gap-2 border border-gray-200/60"
+                      >
+                        <span>{opt.length} мм</span>
+                        <span className="text-gray-400 text-[10px] sm:text-xs bg-gray-50 px-1.5 py-0.5 rounded-md">{opt.pieces} шт.</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {remnantLength && Number(remnantLength) >= 0 && piecesPerBar > 0 && (
+            <div className="bg-green-50/80 p-5 sm:p-8 rounded-3xl border border-green-100">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 sm:gap-6 mb-5 sm:mb-6 pb-5 sm:pb-6 border-b border-green-200/60">
+                <div>
+                  <h4 className="text-green-800 text-[13px] sm:text-sm font-medium mb-1.5">Деловой остаток</h4>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-2xl sm:text-3xl font-semibold text-green-700 tracking-tight">{remnantLength} мм</p>
+                    {remnantWeight && <p className="text-green-600/80 font-medium text-xs sm:text-sm">~ {remnantWeight.tons} т ({remnantWeight.kg} кг)</p>}
+                  </div>
+                </div>
+                {remnantValue && rawPrice && (
+                  <div className="bg-white/70 px-4 py-2.5 sm:px-5 sm:py-3 rounded-[16px] w-full md:w-auto">
+                    <span className="block text-[11px] sm:text-xs text-green-600 font-medium mb-0.5">Убыток на кусок</span>
+                    <span className="text-base sm:text-lg font-semibold text-green-800">{new Intl.NumberFormat('ru-RU').format(remnantValue)} руб.</span>
+                  </div>
+                )}
+              </div>
+              
+              {advancedRemnantStats && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                  <div className="space-y-1 sm:space-y-1.5">
+                    <span className="text-[11px] sm:text-xs text-green-600 font-medium">Потери на 1 тонну</span>
+                    <div className="text-lg sm:text-xl font-semibold text-green-800 tracking-tight">
+                      {rawPrice ? `${formatCurrency(advancedRemnantStats.valuePerTon)} руб.` : <span className="text-[13px] text-green-600/60 font-normal">Укажите цену заготовки</span>}
+                    </div>
+                    {rawPrice && <div className="text-[11px] sm:text-xs text-green-600/70">Масса отхода: {advancedRemnantStats.tonsPerTon} т</div>}
+                  </div>
+                  <div className="space-y-1 sm:space-y-1.5">
+                    <span className="text-[11px] sm:text-xs text-green-600 font-medium">Потери на весь заказ</span>
+                    <div className="text-lg sm:text-xl font-semibold text-green-800 tracking-tight">
+                      {rawPrice && orderWeight ? `${formatCurrency(advancedRemnantStats.orderScrapValue)} руб.` : <span className="text-[13px] text-green-600/60 font-normal">Укажите вес и цену</span>}
+                    </div>
+                    {rawPrice && orderWeight && <div className="text-[11px] sm:text-xs text-green-600/70">Масса отхода: {advancedRemnantStats.orderScrapTons} т</div>}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {remnantLength && Number(remnantLength) < 0 && (
+            <div className="p-4 sm:p-5 bg-orange-50 border border-orange-100 rounded-2xl flex items-start sm:items-center gap-3 sm:gap-4">
+              <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500 shrink-0 mt-0.5 sm:mt-0" />
+              <div>
+                <p className="text-[13px] sm:text-sm font-semibold text-orange-900 mb-0.5">Длина превышает вытяжку</p>
+                <p className="text-[11px] sm:text-xs text-orange-800/80 leading-relaxed">Из заготовки {displayedRawLength}мм получится пруток длиной {displayedTargetLength} мм. Заказанная длина {orderedLength} мм не поместится.</p>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* Секция 3: Итог и Коэффициент */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+          <div className="bg-white p-6 sm:p-8 rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-50 flex flex-col justify-center min-h-[140px]">
+            <div className="flex items-center gap-3 mb-4 sm:mb-6">
+              <div className="p-2 bg-blue-50 text-blue-500 rounded-full">
+                <Package className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+              <h3 className="text-base sm:text-lg font-semibold tracking-tight text-gray-900">Сырье к закупке</h3>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl sm:text-5xl font-semibold tracking-tight text-gray-900">{requiredWeight || '0.00'}</span>
+              <span className="text-lg sm:text-xl font-medium text-gray-400">тонн</span>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 sm:p-8 rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-50 flex flex-col justify-center min-h-[140px]">
+            <div className="flex items-center gap-3 mb-4 sm:mb-6">
+              <div className="p-2 bg-gray-50 text-gray-500 rounded-full">
+                <Scale className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+              <h3 className="text-base sm:text-lg font-semibold tracking-tight text-gray-900">Коэффициент</h3>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl sm:text-5xl font-semibold tracking-tight text-blue-500">{currentCoefficient ? currentCoefficient.toFixed(3) : '--'}</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Секция 4: Коммерческий блок */}
+        <section className="bg-white rounded-[32px] p-5 sm:p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-50 space-y-6 sm:space-y-8">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gray-50 text-gray-900 rounded-full border border-gray-100">
+              <Briefcase className="w-5 h-5" />
+            </div>
+            <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-gray-900">Коммерческий расчет</h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 bg-[#F5F5F7]/60 p-5 sm:p-6 rounded-3xl border border-gray-100/50">
+            <div className="space-y-1.5">
+              <label className="block text-[13px] font-medium text-gray-500 ml-1">Цена продажи за 1 т (без НДС)</label>
+              <div className="relative">
+                <input 
+                  type="text" inputMode="decimal" placeholder="55 000" 
+                  value={formatInputValue(sellPrice)} onChange={(e) => handleNumericInput(e, setSellPrice)} 
+                  className="w-full bg-white border border-transparent text-gray-900 rounded-2xl pl-4 sm:pl-5 pr-12 h-14 text-base sm:text-lg font-medium outline-none focus:ring-2 focus:ring-blue-500/40 shadow-sm transition-all" 
+                />
+                <span className="absolute right-4 sm:right-5 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-[13px] sm:text-sm">руб</span>
+              </div>
+            </div>
+            
+            <div className="space-y-1.5">
+              <label className="block text-[13px] font-medium text-gray-500 ml-1">Сумма продажи заказа</label>
+              <div className="bg-white border border-transparent rounded-2xl px-4 sm:px-5 h-14 flex items-center justify-between shadow-sm">
+                <span className="text-base sm:text-lg font-semibold text-gray-900">{sellPrice && orderWeight ? formatCurrency(Number(sellPrice) * Number(orderWeight)) : '0,00'}</span>
+                <span className="text-gray-400 font-medium text-[13px] sm:text-sm">руб</span>
+              </div>
+            </div>
+          </div>
+
+          {commercialStats && (
+            <div className="bg-[#0f172a] text-white p-5 sm:p-8 lg:p-10 rounded-[32px] shadow-2xl space-y-6 sm:space-y-8">
+              
+              {/* РАСЧЕТ НА 1 ТОННУ ПРОДУКЦИИ */}
+              <div>
+                <h4 className="text-blue-200/60 text-[11px] sm:text-xs font-bold uppercase tracking-widest mb-4 sm:mb-5">Расчет на 1 тонну продукции</h4>
+                <div className="space-y-2.5 sm:space-y-3 text-[13px] sm:text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-200">Продажная цена (за 1 т):</span>
+                    <span className="font-bold text-white">{formatCurrency(sellPrice)} руб.</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[#fca5a5]">
+                    <span>- Стоимость заготовки:</span>
+                    <span>{rawPrice ? `${formatCurrency(rawPrice)} руб.` : '—'}</span>
+                  </div>
+                  <div className="flex justify-between items-start sm:items-center text-[#fca5a5] gap-2">
+                    <span>- Потери на 1 т (из стоимости сырья):</span>
+                    <span className="text-right whitespace-nowrap">{rawPrice ? `${formatCurrency(commercialStats.lossesPerTon)} руб.` : '—'}</span>
+                  </div>
+                  <div className="pt-4 mt-2 border-t border-gray-700/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                    <div>
+                      <span className="font-bold text-white text-[15px] sm:text-lg block">Маржинальная прибыль (1 тн, без НДС):</span>
+                      <div className="text-[10px] sm:text-xs text-gray-400 mt-0.5">
+                        ({formatCurrency(sellPrice)} − {formatCurrency(rawPrice)} − {formatCurrency(commercialStats.lossesPerTon)})
+                      </div>
+                    </div>
+                    <span className={`font-bold text-2xl sm:text-3xl tracking-tight self-end sm:self-auto ${commercialStats.isPositive ? 'text-[#34d399]' : 'text-[#f87171]'}`}>
+                      {commercialStats.isPositive ? '+' : ''}{formatCurrency(commercialStats.profitPerTon)} руб.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* РАСЧЕТ НА ВЕСЬ ЗАКАЗ */}
+              <div className="pt-2">
+                <h4 className="text-blue-200/60 text-[11px] sm:text-xs font-bold uppercase tracking-widest mb-4 sm:mb-5">Расчет на весь заказ ({orderWeight || 0} т)</h4>
+                <div className="space-y-2.5 sm:space-y-3 text-[13px] sm:text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-200">Общая сумма продажи:</span>
+                    <span className="font-bold text-white">{formatCurrency(commercialStats.sellTotal)} руб.</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[#fca5a5]">
+                    <span>- Общая стоимость заготовки:</span>
+                    <span>{rawPrice && orderWeight ? `${formatCurrency(commercialStats.rawTotal)} руб.` : '—'}</span>
+                  </div>
+                  <div className="flex justify-between items-start sm:items-center text-[#fca5a5] gap-2">
+                    <span>- Потери на весь заказ:</span>
+                    <span className="text-right whitespace-nowrap">{rawPrice && orderWeight ? `${formatCurrency(commercialStats.lossesTotal)} руб.` : '—'}</span>
+                  </div>
+                  <div className="pt-5 mt-3 border-t border-gray-700/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                    <div>
+                      <span className="font-bold text-white text-base sm:text-xl uppercase tracking-wider block">Итоговая маржа без НДС:</span>
+                      <div className="text-[10px] sm:text-xs text-gray-400 mt-1">
+                        ({formatCurrency(commercialStats.sellTotal)} − {formatCurrency(commercialStats.rawTotal)} − {formatCurrency(commercialStats.lossesTotal)})
+                      </div>
+                    </div>
+                    <span className={`font-black text-3xl sm:text-4xl tracking-tight self-end sm:self-auto ${commercialStats.isPositive ? 'text-[#34d399]' : 'text-[#f87171]'}`}>
+                      {commercialStats.isPositive ? '+' : ''}{formatCurrency(commercialStats.profitTotal)} руб.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Блоки предупреждений и рекомендаций */}
+              <div className="space-y-3 sm:space-y-4 pt-4 sm:pt-6">
+                
+                {/* Рекомендация по ценообразованию */}
+                {commercialStats.lossesPerTon > 0 && (
+                  <div className="bg-[#fffdf0] border border-[#fde68a] p-4 sm:p-6 rounded-[20px] sm:rounded-[24px]">
+                    <div className="flex items-start gap-3 sm:gap-4">
+                      <Info className="w-5 h-5 sm:w-6 sm:h-6 text-[#d97706] mt-0.5 shrink-0" />
+                      <div>
+                        <h5 className="text-[#92400e] font-bold text-[15px] sm:text-base mb-1.5 sm:mb-2">Рекомендация по ценообразованию</h5>
+                        <p className="text-[#b45309] text-[13px] sm:text-sm leading-relaxed mb-3 sm:mb-4">
+                          При текущем раскрое в себестоимость ложатся потери от деловых остатков: <span className="font-bold text-[#92400e]">{formatCurrency(commercialStats.lossesPerTon)} руб.</span> на каждую тонну продукции.
+                        </p>
+                        <p className="text-[#b45309] text-[13px] sm:text-sm leading-relaxed mb-2 sm:mb-3">
+                          Рекомендуемая продажная цена (для полной компенсации потерь на обрезь):
+                        </p>
+                        <div className="inline-block bg-white border border-[#fcd34d] px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl text-[#92400e] font-bold text-base sm:text-lg shadow-sm">
+                          {formatCurrency(Number(sellPrice) + Number(commercialStats.lossesPerTon))} руб. / т
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Внимание: Низкая маржинальность */}
+                {commercialStats.profitPerTon > 0 && commercialStats.profitPerTon < 10000 && (
+                  <div className="bg-[#1e0f13] border border-[#4c1d24] p-4 sm:p-6 rounded-[20px] sm:rounded-[24px] flex items-start gap-3 sm:gap-4">
+                    <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-[#f87171] shrink-0 mt-0.5" />
+                    <div>
+                      <h5 className="text-[#fca5a5] font-bold text-[15px] sm:text-base mb-1 sm:mb-1.5">Внимание: Низкая маржинальность!</h5>
+                      <p className="text-[#fecaca]/80 text-[13px] sm:text-sm leading-relaxed">
+                        Маржинальная прибыль составляет менее 10 000 руб. на 1 тонну (текущая: {formatCurrency(commercialStats.profitPerTon)} руб.). Рекомендуется повысить продажную цену или оптимизировать длину раскроя для снижения потерь на обрезь.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Внимание: Убыток */}
+                {commercialStats.profitPerTon <= 0 && rawPrice && sellPrice && (
+                  <div className="bg-[#450a0a] border border-[#7f1d1d] p-4 sm:p-6 rounded-[20px] sm:rounded-[24px] flex items-start gap-3 sm:gap-4">
+                    <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-red-400 shrink-0 mt-0.5" />
+                    <div>
+                      <h5 className="text-red-300 font-bold text-[15px] sm:text-base mb-1 sm:mb-1.5">Внимание: Сделка убыточна!</h5>
+                      <p className="text-red-200/80 text-[13px] sm:text-sm leading-relaxed">
+                        Сделка приносит убыток. Обязательно пересмотрите цену продажи или согласуйте с клиентом оптимальную мерную длину для устранения отходов.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          )}
+        </section>
+
+      </div>
+    </div>
+  );
+}
